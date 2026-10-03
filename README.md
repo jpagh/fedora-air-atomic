@@ -1,85 +1,92 @@
-# fedora-air
+# fedora-air (Atomic)
 
-Fedora 44 on a 2015 MacBook Air (`MacBookAir7,2`): the local workarounds it needs, why each one
-exists, and how to undo it.
+Fedora **Atomic** (rpm-ostree) setup for a 2015 MacBook Air — `MacBookAir7,2`, the 13" early
+2015 model.
 
-Apple's 2015 hardware needs a proprietary wifi driver, an out-of-tree camera driver built from
-source, and a sleep hook to stop the machine waking itself six seconds after every idle suspend.
-None of it is shipped by any package, so nothing recreates it after a reinstall and nothing warns
-you when a piece breaks.
+This is the Atomic sibling of **[brianjcohen/fedora-air](https://github.com/brianjcohen/fedora-air)**,
+which covers the same machine on Fedora **Workstation** (dnf, DKMS, KDE Plasma). That repository
+is where the hardware knowledge comes from — which wifi driver to use, how to get the camera
+firmware out of Apple's driver, and the suspend quirks. This repository keeps only what Atomic
+needs and re-implements it the Atomic way: packages layered with `rpm-ostree` instead of `dnf`,
+kernel modules built as **akmods** instead of DKMS, files under `/etc` instead of read-only
+`/usr`, and Sway instead of KDE.
 
-**[`fedora-air-runbook.md`](fedora-air-runbook.md) is the document.** It is written to be handed
-to a person — or an agent — doing this again on the same hardware: the reason for each workaround,
-the commands that create it, what correct output looks like, and how to roll it back. This repo
-holds the files it refers to, so nothing has to be retyped from prose.
+> If you are on Fedora Workstation, use the original repository, not this one.
+
+## Quick start
+
+```sh
+git clone <this-repo> && cd <this-repo>
+./atomic-setup.sh
+```
+
+`atomic-setup.sh` runs as your normal user (it calls `sudo` where needed), asks a few optional
+questions, layers the wifi and camera drivers, and tells you when to reboot. **Re-run it after
+the reboot** to finish. It is safe to stop and re-run at any time — it inspects the machine and
+does whatever is still missing.
+
+## What it sets up
+
+**Required** — this hardware does not work on Atomic without these:
+
+| Piece | Why | Script |
+|---|---|---|
+| **Wifi** | The Broadcom BCM4360 needs the proprietary `wl` driver, layered as an akmod, plus three workarounds for its suspend/WPA3/PMF defects. | `atomic-wifi.sh` |
+| **Camera** | The FaceTime HD camera needs an out-of-tree driver plus firmware extracted from Apple's macOS driver, both repackaged as an akmod + RPM. | `atomic-camera.sh` |
+
+**Optional** — asked for, never assumed. Say no to any of them and nothing changes:
+
+| Piece | Script |
+|---|---|
+| Keyboard-backlight keys (F5/F6) | `keyboard-backlight.sh` |
+| Trackpad: tap-to-click + corner right-click | `trackpad.sh` |
+| Swap Fn and left Ctrl | `swap-fn-ctrl.sh` |
+| Swap Caps Lock and `` ` ``/`~` (personal taste) | `swap-caps-tilde.sh` |
+| Lock screen: blurred ring (swaylock) or login-style (gtklock) | `lock-screen-setup.sh` |
+| Numeric PIN for the lock screen | `lock-pin.sh` |
+
+Each feature is a standalone script you can run on its own; `atomic-setup.sh` is just the
+conductor that runs them in order and handles the reboot. Every script is idempotent.
 
 ## Layout
 
-Files mirror their real filesystem paths, so installing is a tree copy:
-
 ```
-fedora-air-runbook.md                                  the runbook
-install.sh                                             copies the files below into place
-check-drift.sh                                         diffs the files below against the system
-usr/lib/systemd/system-sleep/
-    wl-reload            unload/reload the Broadcom wl driver around suspend
-    facetimehd-reload    take the camera driver out of the resume path
-    lid-wake-guard       arm lid wake only when the lid is actually closed
-    pm-trace             arm pm_trace for the next resume hang (disarmed by default)
-    battery-drain-log    measure real S3 drain per cycle
-usr/local/sbin/
-    wl-fix-wifi-profiles rewrite WPA3/SAE profiles the wl driver cannot use
-    pm-trace-result      read the RTC trace after a resume hang
-    pm-trace-rtc-fix     repair the RTC that pm_trace clobbers
-etc/
-    systemd/system/wl-fix-wifi-profiles.{path,service}
-    NetworkManager/conf.d/91-wl-no-pmf.conf
-    modprobe.d/99-applespi-blacklist.conf
-    modules-load.d/facetimehd.conf
+atomic-setup.sh          guided conductor -- run this first
+atomic-playbook.md       the why of each piece, how it works, how to undo it
+atomic-wifi.sh           Broadcom wl wifi + its three workarounds
+atomic-camera.sh         FaceTime HD camera (local akmod + firmware)
+atomic-upgrade.sh        after a kernel upgrade, verify wl + facetimehd were rebuilt
+swap-fn-ctrl.sh          Fn <-> left Ctrl
+swap-caps-tilde.sh       Caps Lock <-> `/~ (personal taste)
+keyboard-backlight.sh    F5/F6 keyboard backlight (Sway)
+trackpad.sh              tap-to-click / corner right-click (Sway)
+lock-screen-setup.sh     swaylock (ring) or gtklock (login-style) (Sway)
+lock-pin.sh              numeric PIN for the lock screen (PAM)
+atomic-camera/           the three camera RPMs (akmod + firmware + meta)
+etc/, usr/               local files the wifi and camera scripts install
+LICENSE                  MIT (inherited from the original repository)
 ```
 
-## Install
+## After a kernel upgrade
+
+`wl` and `facetimehd` are out-of-tree and must be rebuilt for each new kernel. `akmods` does
+this automatically, but a kernel that boots fine can still have no wifi or no camera. Run:
 
 ```sh
-git clone <this-repo> && cd fedora-air
-sudo ./install.sh
+sudo ./atomic-upgrade.sh
 ```
 
-`install.sh` refuses to run on any model other than `MacBookAir7,2` unless forced, is safe to
-re-run, and installs **only** these files — it does not install packages, build the camera driver
-or touch the kernel command line. It prints what remains to be done by hand.
+It stages the upgrade, checks that both modules were built for the new kernel, and tells you to
+reboot only once they are.
 
-`check-drift.sh` compares every file here against its installed copy, so the repo cannot quietly
-fall out of step with the machine:
+## Credits
 
-```sh
-sudo ./check-drift.sh
-```
-
-Then work through the runbook: §3 wifi, §4 camera, §9 health check. Expect roughly half an hour
-of building for the camera and a reboot to confirm the result.
-
-## What this does not fix
-
-- **WPA3-only networks, on the internal card.** The `wl` driver cannot do SAE at all; a WPA2/WPA3
-  transition SSID works, WPA3-only does not. The fix is a USB adapter with an in-kernel driver,
-  which also retires four of these workarounds — the runbook measures one (Realtek RTL8821CU:
-  works out of the box, real WPA3, survives suspend, but ~75 Mbit/s against the internal card's
-  ~200) and explains which chipsets to buy and which to avoid.
-- **Kernel security mitigations.** `wl` is built without return thunks and weakens Spectre and
-  retbleed mitigations system-wide. The kernel says so on every boot.
-- **The resume hang.** One suspend in 2026-09-17 never finished resuming. It has not recurred
-  since the camera driver left the resume path, but the cause was never proven. §11 of the runbook
-  lists that and everything else that was never followed up.
+All of the hardware research lives in
+**[brianjcohen/fedora-air](https://github.com/brianjcohen/fedora-air)** — its runbook is the
+reference for why any of this is necessary. This repository is only the Atomic port. The camera
+packaging is derived from the [mulderje/facetimehd-kmod](https://copr.fedorainfracloud.org/coprs/mulderje/facetimehd-kmod/)
+COPR, with a one-line build fix for kernel ≥ 7.2.
 
 ## License
 
-[MIT](LICENSE). The scripts are small and the workarounds they implement are documented in public
-bug reports and upstream wikis; use them however you like. The camera driver and firmware
-extractor are separate upstream projects with their own licenses.
-
-## Notes
-
-Written against Fedora 44, kernel 7.2.x, KDE Plasma on Wayland. Paths such as
-`/usr/lib/systemd/system-sleep` and the SELinux labelling assume a Fedora-like layout. Network
-names, printer identifiers and usernames in the runbook are placeholders in angle brackets.
+MIT — see [LICENSE](LICENSE).
