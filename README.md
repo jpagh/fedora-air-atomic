@@ -13,7 +13,8 @@ If you're on Workstation, use the original repo.
 ## Setup
 
 ```sh
-git clone <this-repo> && cd <this-repo>
+git clone https://github.com/jpagh/fedora-air-atomic
+cd fedora-air-atomic
 ./atomic-setup.sh
 ```
 
