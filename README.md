@@ -4,9 +4,9 @@ Fedora Atomic (rpm-ostree) setup for a 2015 13" MacBook Air (`MacBookAir7,2`).
 
 This is the Atomic version of [brianjcohen/fedora-air](https://github.com/brianjcohen/fedora-air),
 which covers the same machine on Fedora Workstation. That repo is where the hardware research
-comes from: the wifi driver choice, the camera firmware, the suspend quirks. The difference here
-is Atomic. Packages are layered with `rpm-ostree` instead of `dnf`, kernel modules are built as
-akmods instead of DKMS, and files that would go under read-only `/usr` go under `/etc`.
+comes from: the wifi driver choice, the camera firmware, the suspend quirks. This repo just
+redoes it for Atomic, where `rpm-ostree` replaces `dnf`, akmods replace DKMS, and `/usr` is
+read-only so the extra files go in `/etc`.
 
 If you're on Workstation, use the original repo.
 
@@ -30,7 +30,7 @@ Wifi and camera are required. Neither works on Atomic without them.
 | Wifi: Broadcom BCM4360, needs the proprietary `wl` driver | `atomic-wifi.sh` |
 | Camera: FaceTime HD, out-of-tree driver plus Apple firmware | `atomic-camera.sh` |
 
-Everything else is optional, and the setup script asks before doing any of it.
+Everything else is optional.
 
 | Piece | Script |
 |---|---|
