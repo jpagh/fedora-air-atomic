@@ -309,6 +309,23 @@ Two gotchas worth remembering:
 that (for the swaylock modes) screenshots the desktop, blurs it, and launches the locker.
 `~/.config/sway/config.d/90-swayidle.conf` overrides Fedora's default to use that wrapper.
 
+That override adds one hook Fedora's copy does not have: `after-resume 'swaymsg "output *
+power on"'`. The `resume` clauses in the file only run when there is *activity* again, so if
+`swayidle` had blanked the output (`output * power off`) before sleeping, nothing guaranteed it
+came back when the system resumed — the panel could come back black. `after-resume` runs on the
+logind resume signal, so the output is always re-enabled.
+
+The override also keeps the sleep lock **synchronous** (`before-sleep` blocks, no `&`).
+`swayidle` holds a logind delay inhibitor while it runs `before-sleep`, and logind only waits
+`InhibitDelayMaxSec` (5 s) before sleeping regardless — so a slow lock meant the machine entered
+S3 with the lid still open, and reopening the lid inside that window did not cancel the sleep. The
+lock was slow because `grim` waits for a frame on the output, which `swayidle` itself had blanked,
+so `grim` blocked forever; `lock-screen` now bounds the screenshot with `timeout`, which keeps the
+lock quick and the window small. Backgrounding it (`&`) instead removed the delay but let a wake
+keypress reach the focused window before the locker came up, so the wrapper locks synchronously
+and skips the work entirely when gtklock is already running. The blocker was confirmed by powering
+the output off and timing `grim` (it hangs indefinitely).
+
 **`lock-screen-setup.sh`** picks the look:
 
 | Mode | Result |
@@ -386,6 +403,18 @@ that `/etc/systemd/system-sleep/wl-reload` is labelled `bin_t` (`ls -lZ`). If th
 missing, check `journalctl -k -b | grep -i facetimehd` and that the akmod was built
 (`ls /usr/lib/modules/$(uname -r)/extra/facetimehd/`).
 
+If the machine will not wake from S3 on a keypress (only the lid works), check the wake sources:
+
+```sh
+sudo ./usb-wakeup.sh status   # udev rule + ACPI XHC1 + the two root hubs
+cat /proc/acpi/wakeup         # LID0 and XHC1 must both be *enabled
+```
+
+The internal keyboard is a USB HID device (`05ac:0291`). The kernel arms the device itself, but
+the xHCI root hubs come up `power/wakeup=disabled`, so without the udev rule a keypress has no
+path out of S3. `usb-wakeup.sh` arms the hubs (and the device) and leaves the card reader and
+Bluetooth disabled so they cannot wake the machine on their own.
+
 ---
 
 ## 12. Undo everything
@@ -400,6 +429,7 @@ sudo ./swap-fn-ctrl.sh off
 sudo ./swap-caps-tilde.sh off
 ./lock-screen-setup.sh stock
 sudo ./lock-pin.sh clear
+sudo ./usb-wakeup.sh off
 
 # Camera (packages + hook)
 sudo rpm-ostree uninstall akmod-facetimehd facetimehd facetimehd-firmware

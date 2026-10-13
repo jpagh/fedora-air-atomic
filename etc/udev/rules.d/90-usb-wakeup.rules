@@ -1,0 +1,15 @@
+# Let the internal Apple keyboard/trackpad wake the machine from S3.
+#
+# The firmware arms the xHCI controller (ACPI XHC1), but the root hubs default
+# to power/wakeup=disabled, so a keypress cannot wake the system.  Arm the hubs
+# (and the HID device itself, for good measure); leave everything else -- card
+# reader, Bluetooth -- disabled so it cannot wake the machine spuriously.
+#
+# Installed and removed by usb-wakeup.sh.  See that script for the rationale.
+#
+# ENV{DEVTYPE}=="usb_device" keeps the second rule off the device's interfaces
+# (1-5:1.0 ...), which have no power/wakeup attribute and would only log
+# "Could not chase sysfs attribute ... ignoring" warnings on every USB event.
+ACTION=="add|change", SUBSYSTEM=="usb", KERNEL=="usb[0-9]*", ATTR{power/wakeup}="enabled"
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", \
+    ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="0291", ATTR{power/wakeup}="enabled"

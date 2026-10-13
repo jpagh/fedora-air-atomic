@@ -74,7 +74,8 @@ exec LT="$lock_timeout" ST="$screen_timeout" LT=${LT:-300} ST=${ST:-60} && \
                       resume 'swaymsg "output * power on"'  \
         timeout $ST 'pgrep -xu "$USER" swaylock >/dev/null && swaymsg "output * power off"' \
              resume 'pgrep -xu "$USER" swaylock >/dev/null && swaymsg "output * power on"'  \
-        before-sleep '$HOME/.local/bin/lock-screen' \
+        before-sleep 'pgrep -xu "$USER" gtklock >/dev/null || $HOME/.local/bin/lock-screen' \
+        after-resume 'swaymsg "output * power on"' \
         lock '$HOME/.local/bin/lock-screen' \
         unlock 'pkill -xu "$USER" -SIGUSR1 swaylock'
 EOF
@@ -96,7 +97,8 @@ restart_swayidle() {
         resume 'swaymsg "output * power on"' \
         timeout "$ST" 'pgrep -xu "$USER" swaylock >/dev/null && swaymsg "output * power off"' \
         resume 'pgrep -xu "$USER" swaylock >/dev/null && swaymsg "output * power on"' \
-        before-sleep "$locker" \
+        before-sleep "pgrep -xu \"$USER\" gtklock >/dev/null || $locker" \
+        after-resume 'swaymsg "output * power on"' \
         lock "$locker" \
         unlock 'pkill -xu "$USER" -SIGUSR1 swaylock' \
         </dev/null >/dev/null 2>&1 &
@@ -134,7 +136,7 @@ EOF
 # lock-screen -- lock with swaylock over a blurred, darkened screenshot.
 set -u
 img="${XDG_CACHE_HOME:-$HOME/.cache}/lock-screen.png"
-if grim "$img" 2>/dev/null \
+if timeout -k 1 2 grim "$img" 2>/dev/null \
    && magick "$img" -blur 0x12 -fill black -colorize 20% "$img.tmp" 2>/dev/null; then
     mv "$img.tmp" "$img"
     exec swaylock -f -i "$img"
@@ -232,7 +234,7 @@ EOF
 # lock-screen -- gtklock over a blurred, darkened screenshot.
 set -u
 img="${XDG_CONFIG_HOME:-$HOME/.config}/gtklock/background.png"
-if grim "$img" 2>/dev/null \
+if timeout -k 1 2 grim "$img" 2>/dev/null \
    && magick "$img" -blur 0x12 -fill black -colorize 20% "$img.tmp" 2>/dev/null; then
     mv "$img.tmp" "$img"
 else

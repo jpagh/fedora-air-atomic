@@ -41,6 +41,7 @@ Everything else is optional.
 | Swap Caps Lock and `` ` ``/`~` | `swap-caps-tilde.sh` |
 | Lock screen: swaylock or gtklock | `lock-screen-setup.sh` |
 | Lock-screen numeric PIN | `lock-pin.sh` |
+| Wake from suspend on a keypress (not just the lid) | `usb-wakeup.sh` |
 
 Each is a standalone script. `atomic-setup.sh` runs them in order and handles the reboot.
 
@@ -58,6 +59,7 @@ keyboard-backlight.sh    F5/F6 backlight (Sway)
 trackpad.sh              tap-to-click / corner right-click (Sway)
 lock-screen-setup.sh     swaylock or gtklock (Sway)
 lock-pin.sh              lock-screen PIN (PAM)
+usb-wakeup.sh            keyboard/trackpad wake from S3 (udev rule)
 atomic-camera/           the three camera RPMs
 etc/, usr/               files the wifi and camera scripts install
 LICENSE                  MIT
