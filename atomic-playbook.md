@@ -412,8 +412,11 @@ cat /proc/acpi/wakeup         # LID0 and XHC1 must both be *enabled
 
 The internal keyboard is a USB HID device (`05ac:0291`). The kernel arms the device itself, but
 the xHCI root hubs come up `power/wakeup=disabled`, so without the udev rule a keypress has no
-path out of S3. `usb-wakeup.sh` arms the hubs (and the device) and leaves the card reader and
-Bluetooth disabled so they cannot wake the machine on their own.
+path out of S3. `usb-wakeup.sh` arms the USB 2.0 hub (`usb1`) and the keyboard/trackpad device.
+It deliberately leaves the USB 3.0 hub (`usb2`, the card reader) and Bluetooth disarmed: on kernel
+7.2.11 the card reader began waking the machine a few seconds after lid-close suspend and looping
+on `usb usb2-port3: unable to enumerate USB device`. If that loop comes back, check
+`sudo ./usb-wakeup.sh status`: `usb2` should read `wakeup=disabled`.
 
 ---
 

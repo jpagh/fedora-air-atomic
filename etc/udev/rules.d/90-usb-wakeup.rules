@@ -1,15 +1,21 @@
 # Let the internal Apple keyboard/trackpad wake the machine from S3.
 #
 # The firmware arms the xHCI controller (ACPI XHC1), but the root hubs default
-# to power/wakeup=disabled, so a keypress cannot wake the system.  Arm the hubs
-# (and the HID device itself, for good measure); leave everything else -- card
-# reader, Bluetooth -- disabled so it cannot wake the machine spuriously.
+# to power/wakeup=disabled, so a keypress cannot wake the system.  Arm only the
+# USB 2.0 root hub (usb1), which is where the internal keyboard/trackpad lives.
+# Leave the USB 3.0 root hub (usb2) disarmed: its card reader is the device that
+# started waking the machine a few seconds after lid-close suspend on kernel
+# 7.2.11, producing a "usb usb2-port3: unable to enumerate USB device" loop.
+# The keyboard/trackpad HID device itself is armed too, for good measure.
 #
 # Installed and removed by usb-wakeup.sh.  See that script for the rationale.
 #
-# ENV{DEVTYPE}=="usb_device" keeps the second rule off the device's interfaces
+# ENV{DEVTYPE}=="usb_device" keeps the last rule off the device's interfaces
 # (1-5:1.0 ...), which have no power/wakeup attribute and would only log
 # "Could not chase sysfs attribute ... ignoring" warnings on every USB event.
-ACTION=="add|change", SUBSYSTEM=="usb", KERNEL=="usb[0-9]*", ATTR{power/wakeup}="enabled"
+ACTION=="add|change", SUBSYSTEM=="usb", KERNEL=="usb1", ATTR{power/wakeup}="enabled"
+ACTION=="add|change", SUBSYSTEM=="usb", KERNEL=="usb2", ATTR{power/wakeup}="disabled"
 ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", \
     ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="0291", ATTR{power/wakeup}="enabled"
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", \
+    ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="8406", ATTR{power/wakeup}="disabled"

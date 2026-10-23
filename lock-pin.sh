@@ -166,7 +166,8 @@ set)
 clear)
     rm -f "$pinf"
     pam_remove_line
-    say "PIN cleared. The lock screen uses the account password again."
+    rm -f "$CHECK"
+    say "PIN cleared and PAM helper removed. The lock screen uses the account password again."
     ;;
 status)
     if [ -f "$pinf" ]; then

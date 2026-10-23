@@ -8,14 +8,15 @@
 # left logind's idea of the lid stale -- there is no way back from sleep except
 # the power button.
 #
-# Arming the root hubs, and belt-and-braces the internal HID device itself,
-# gives the keyboard and trackpad a wake path.  The state has to be re-applied
-# on every boot, so it lives in a udev rule rather than a one-shot write to
+# Arming the USB 2.0 root hub (usb1) and the internal HID device itself gives
+# the keyboard and trackpad a wake path.  The state has to be re-applied on
+# every boot, so it lives in a udev rule rather than a one-shot write to
 # /proc/acpi/wakeup.
 #
-# Scope: this arms wake sources only.  The card reader and Bluetooth also hang
-# off the xHCI controllers; they are deliberately left disabled so they cannot
-# wake the machine on their own.
+# Scope: this arms wake sources only.  The USB 3.0 root hub (usb2) is left
+# disarmed because its card reader started waking the machine immediately after
+# lid-close suspend on kernel 7.2.11 ("usb usb2-port3: unable to enumerate USB
+# device").  Bluetooth is also left disabled.
 #
 # Usage: sudo ./usb-wakeup.sh [on|off|status]     (default: on)
 set -euo pipefail
@@ -36,6 +37,14 @@ install_rule() {
     # Re-run the rule against what is already plugged in, so it applies without
     # a reboot.
     udevadm trigger --subsystem-match=usb --action=change
+    udevadm settle --timeout=5 2>/dev/null || true
+    # Belt and braces: make the runtime state match even if the trigger raced
+    # the hub's own add/change event.  usb1 carries the keyboard/trackpad;
+    # usb2 carries the card reader that must not wake the machine.
+    [ -e /sys/bus/usb/devices/usb1/power/wakeup ] && \
+        echo enabled > /sys/bus/usb/devices/usb1/power/wakeup 2>/dev/null || true
+    [ -e /sys/bus/usb/devices/usb2/power/wakeup ] && \
+        echo disabled > /sys/bus/usb/devices/usb2/power/wakeup 2>/dev/null || true
     sleep 0.5
 }
 
